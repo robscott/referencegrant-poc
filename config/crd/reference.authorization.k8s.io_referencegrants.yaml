@@ -1,0 +1,97 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    api-approved.kubernetes.io: unapproved
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: referencegrants.reference.authorization.k8s.io
+spec:
+  group: reference.authorization.k8s.io
+  names:
+    kind: ReferenceGrant
+    listKind: ReferenceGrantList
+    plural: referencegrants
+    shortNames:
+    - rg
+    singular: referencegrant
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ReferenceGrant identifies namespaces of resources that are trusted
+          to reference the specified names of resources in the same namespace as the
+          grant.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          from:
+            description: "From describes the trusted namespaces and kinds that can
+              reference the resources described in the Pattern and optionally the
+              \"to\" list. \n Support: Core"
+            items:
+              description: ReferenceGrantFrom describes trusted namespaces.
+              properties:
+                namespace:
+                  description: "Namespace is the namespace of the referent. \n Support:
+                    Core"
+                  type: string
+              required:
+              - namespace
+              type: object
+            maxItems: 16
+            minItems: 1
+            type: array
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          patternName:
+            description: PatternName refers to the name of the ClusterReferencePattern
+              this allows.
+            type: string
+          to:
+            description: To describes the names of resources that may be referenced
+              from the namespaces described in "From" following the linked pattern.
+              When unspecified or empty, references to all resources matching the
+              pattern are allowed.
+            items:
+              description: ReferenceGrantTo describes what Names are allowed as targets
+                of the references.
+              properties:
+                group:
+                  description: Group is the group of the referent.
+                  type: string
+                name:
+                  description: Name is the name of the referent. When unspecified,
+                    this policy refers to all resources of the specified Group and
+                    Kind in the local namespace.
+                  type: string
+                resource:
+                  description: Resource is the resource of the referent.
+                  type: string
+              required:
+              - group
+              - resource
+              type: object
+            maxItems: 16
+            type: array
+        required:
+        - from
+        - patternName
+        - to
+        type: object
+    served: true
+    storage: true
+    subresources: {}

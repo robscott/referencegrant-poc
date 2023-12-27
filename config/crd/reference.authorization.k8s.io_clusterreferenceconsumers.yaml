@@ -1,0 +1,87 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    api-approved.kubernetes.io: unapproved
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: clusterreferenceconsumers.reference.authorization.k8s.io
+spec:
+  group: reference.authorization.k8s.io
+  names:
+    kind: ClusterReferenceConsumer
+    listKind: ClusterReferenceConsumerList
+    plural: clusterreferenceconsumers
+    shortNames:
+    - crc
+    singular: clusterreferenceconsumer
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ClusterReferenceConsumer identifies a common form of referencing
+          pattern. This can then be used with ReferenceGrants to selectively allow
+          references.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          baselineGrant:
+            description: BaselineGrant allows granting access to same-namespace references
+              by default without the need for ReferenceGrants.
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          patternNames:
+            description: The names of the ClusterReferencePatterns this consumer implements.
+            items:
+              type: string
+            type: array
+          subject:
+            description: Subject refers to the subject that is a consumer of the referenced
+              pattern(s).
+            properties:
+              apiGroup:
+                description: APIGroup holds the API group of the referenced subject.
+                  Defaults to "" for ServiceAccount subjects. Defaults to "rbac.authorization.k8s.io"
+                  for User and Group subjects.
+                type: string
+              kind:
+                description: Kind of object being referenced. Values defined by this
+                  API group are "User", "Group", and "ServiceAccount". If the Authorizer
+                  does not recognized the kind value, the Authorizer should report
+                  an error.
+                type: string
+              name:
+                description: Name of the object being referenced.
+                type: string
+              namespace:
+                description: Namespace of the referenced object.  If the object kind
+                  is non-namespace, such as "User" or "Group", and this value is not
+                  empty the Authorizer should report an error.
+                type: string
+            required:
+            - kind
+            - name
+            type: object
+            x-kubernetes-map-type: atomic
+        required:
+        - baselineGrant
+        - patternNames
+        - subject
+        type: object
+    served: true
+    storage: true
+    subresources: {}
