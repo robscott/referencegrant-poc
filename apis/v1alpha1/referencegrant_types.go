@@ -53,6 +53,15 @@ type ReferenceGrant struct {
 	To []ReferenceGrantTo `json:"to"`
 }
 
+// +kubebuilder:object:root=true
+
+// ReferenceGrantList contains a list of ReferenceGrant
+type ReferenceGrantList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ReferenceGrant `json:"items"`
+}
+
 // ReferenceGrantFrom describes trusted namespaces.
 type ReferenceGrantFrom struct {
 	// Namespace is the namespace of the referent.

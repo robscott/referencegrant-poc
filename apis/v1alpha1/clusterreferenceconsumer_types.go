@@ -46,3 +46,12 @@ type ClusterReferenceConsumer struct {
 	// default without the need for ReferenceGrants.
 	BaselineGrant string `json:"baselineGrant"`
 }
+
+// +kubebuilder:object:root=true
+
+// ClusterReferenceConsumerList contains a list of ClusterReferenceConsumer
+type ClusterReferenceConsumerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ClusterReferenceConsumer `json:"items"`
+}

@@ -49,18 +49,17 @@ spec:
             items:
               properties:
                 apiVersion:
-                  description: 'APIVersion is the version of this resource this path
-                    applies to. TODO: Maybe this should be a list or maybe we should
-                    allow empty val to mean "all versions".'
+                  description: Version is the API version of this resource this path
+                    applies to. When unspecified, this path is used for all API versions.
                   type: string
-                resource:
+                path:
                   description: Path is the CEL path within the resource where the
                     reference is defined.
                   type: string
               required:
-              - apiVersion
-              - resource
+              - path
               type: object
+            minItems: 1
             type: array
           resource:
             description: Resource is the resource of the referent.

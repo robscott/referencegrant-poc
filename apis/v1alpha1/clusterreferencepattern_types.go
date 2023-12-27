@@ -40,15 +40,25 @@ type ClusterReferencePattern struct {
 
 	// Paths are the path(s) which this reference may come from for each API
 	// version.
+	// +kubebuilder:validation:MinItems=1
 	Paths []VersionedPath `json:"paths"`
 }
 
+// +kubebuilder:object:root=true
+
+// ClusterReferencePatternList contains a list of ClusterReferencePattern
+type ClusterReferencePatternList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ClusterReferencePattern `json:"items"`
+}
+
 type VersionedPath struct {
-	// APIVersion is the version of this resource this path applies to.
-	// TODO: Maybe this should be a list or maybe we should allow empty val to
-	// mean "all versions".
-	APIVersion string `json:"apiVersion"`
+	// Version is the API version of this resource this path applies to. When
+	// unspecified, this path is used for all API versions.
+	// +optional
+	Version string `json:"apiVersion,omitempty"`
 
 	// Path is the CEL path within the resource where the reference is defined.
-	Path string `json:"resource"`
+	Path string `json:"path"`
 }

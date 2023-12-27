@@ -23,5 +23,6 @@ limitations under the License.
 package tools
 
 import (
+	_ "k8s.io/code-generator/cmd/register-gen"
 	_ "sigs.k8s.io/controller-tools/cmd/controller-gen"
 )
