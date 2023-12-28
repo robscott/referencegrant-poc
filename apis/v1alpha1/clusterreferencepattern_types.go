@@ -38,10 +38,11 @@ type ClusterReferencePattern struct {
 	// Resource is the resource of the referent.
 	Resource string `json:"resource"`
 
-	// Paths are the path(s) which this reference may come from for each API
-	// version.
-	// +kubebuilder:validation:MinItems=1
-	Paths []VersionedPath `json:"paths"`
+	// Version is the API version of this resource this path applies to.
+	Version string `json:"version,omitempty"`
+
+	// Path is the path which this reference may come from.
+	Path string `json:"path"`
 }
 
 // +kubebuilder:object:root=true
@@ -51,14 +52,4 @@ type ClusterReferencePatternList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ClusterReferencePattern `json:"items"`
-}
-
-type VersionedPath struct {
-	// Version is the API version of this resource this path applies to. When
-	// unspecified, this path is used for all API versions.
-	// +optional
-	Version string `json:"apiVersion,omitempty"`
-
-	// Path is the CEL path within the resource where the reference is defined.
-	Path string `json:"path"`
 }

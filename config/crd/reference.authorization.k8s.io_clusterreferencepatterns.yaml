@@ -43,30 +43,19 @@ spec:
             type: string
           metadata:
             type: object
-          paths:
-            description: Paths are the path(s) which this reference may come from
-              for each API version.
-            items:
-              properties:
-                apiVersion:
-                  description: Version is the API version of this resource this path
-                    applies to. When unspecified, this path is used for all API versions.
-                  type: string
-                path:
-                  description: Path is the CEL path within the resource where the
-                    reference is defined.
-                  type: string
-              required:
-              - path
-              type: object
-            minItems: 1
-            type: array
+          path:
+            description: Path is the path which this reference may come from.
+            type: string
           resource:
             description: Resource is the resource of the referent.
             type: string
+          version:
+            description: Version is the API version of this resource this path applies
+              to.
+            type: string
         required:
         - group
-        - paths
+        - path
         - resource
         type: object
     served: true
