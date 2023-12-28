@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"strings"
 
@@ -9,11 +11,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/util/jsonpath"
 	"k8s.io/klog/v2/klogr"
 	"k8s.io/klog/v2/textlogger"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -97,27 +101,8 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, err
 	}
 
-	segments := strings.Split(crp.Path, "[*].")
-	c.log.Info("segments", "s", segments, "l", list.IsList())
-
-	ref := make([]interface{}, 0)
-	for _, r := range list.Items {
-		c.log.Info("Resource", "r", r)
-
-		subSegments := strings.Split(segments[0], ".")
-		c.log.Info("subSegments", "s", subSegments)
-
-		matchingSlice, _, _ := unstructured.NestedSlice(r.Object, subSegments...)
-
-		c.log.Info("matchingSlice", "r", matchingSlice)
-
-		for _, match := range matchingSlice {
-			subSegments2 := strings.Split(segments[len(segments)-1], ".")
-			c.log.Info("match", "r", match, "s", subSegments2)
-			ref, _, _ = unstructured.NestedSlice(match.(map[string]interface{}), subSegments2...)
-			c.log.Info("Ref", "r", ref)
-		}
-	}
+	refs := c.getReferences(list, crp.Path)
+	c.log.Info("Refs", "r", refs)
 
 	return ctrl.Result{}, nil
 }
@@ -150,4 +135,63 @@ func main() {
 	// 2) Get current set of role bindings generated for this pattern via label
 	// 3) Get desired set of role bindings from cache of pattern references - needs to be rebuilt for some ClusterReferencePattern changes - those should lock cache
 	// 4) Update existing role bindings, create missing ones, delete unnecessary
+}
+
+type reference struct {
+	Group     string
+	Resource  string
+	Namespace string
+	Name      string
+}
+
+func (c *Controller) getReferences(list *unstructured.UnstructuredList, path string) []reference {
+	j := jsonpath.New("test")
+	err := j.Parse("{.items[*].spec.listeners[*].tls.certificateRefs[*]}")
+	if err != nil {
+		c.log.Error(err, "error parsing JSON Path")
+	}
+	results := new(bytes.Buffer)
+	err = j.Execute(results, list.UnstructuredContent())
+	if err != nil {
+		c.log.Error(err, "error finding results with JSON Path")
+	}
+
+	rawRefs := strings.Split(results.String(), " ")
+
+	refs := []reference{}
+
+	for _, rr := range rawRefs {
+		jr := map[string]string{}
+		err = json.Unmarshal([]byte(rr), &jr)
+		group, hasGroup := jr["group"]
+		if !hasGroup {
+			c.log.Info("Missing group in reference", "ref", jr)
+			continue
+		}
+		resource, hasResource := jr["resource"]
+		if !hasResource {
+			kind, hasKind := jr["kind"]
+			if !hasKind {
+				c.log.Info("Missing kind or resource in reference", "ref", jr)
+				continue
+			}
+			gvr, _ := meta.UnsafeGuessKindToResource(schema.GroupVersionKind{Group: group, Version: "v1", Kind: kind})
+			resource = gvr.Resource
+		}
+
+		namespace, hasNamespace := jr["namespace"]
+		if !hasNamespace {
+			// TODO: Get local namespace somehow
+		}
+
+		name, hasName := jr["name"]
+		if !hasName {
+			c.log.Info("Missing name in reference", "ref", jr)
+			continue
+		}
+
+		refs = append(refs, reference{Group: group, Resource: resource, Namespace: namespace, Name: name})
+	}
+
+	return refs
 }
