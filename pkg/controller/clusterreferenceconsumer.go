@@ -3,8 +3,12 @@ package main
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/workqueue"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	v1a1 "sigs.k8s.io/referencegrant-poc/apis/v1alpha1"
 )
 
 type ClusterReferenceConsumerHandler struct {
@@ -16,17 +20,25 @@ func NewClusterReferenceConsumerHandler(c *Controller) *ClusterReferenceConsumer
 }
 
 func (h *ClusterReferenceConsumerHandler) Create(ctx context.Context, e event.CreateEvent, q workqueue.RateLimitingInterface) {
-	h.c.log.Info("ClusterReferenceConsumer Create", e)
+	queuePatternsForCRC(e.Object, q)
 }
 
 func (h *ClusterReferenceConsumerHandler) Update(ctx context.Context, e event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	h.c.log.Info("ClusterReferenceConsumer Update", e)
+	queuePatternsForCRC(e.ObjectNew, q)
+	queuePatternsForCRC(e.ObjectOld, q)
 }
 
 func (h *ClusterReferenceConsumerHandler) Delete(ctx context.Context, e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-	h.c.log.Info("ClusterReferenceConsumer Delete", e)
+	queuePatternsForCRC(e.Object, q)
 }
 
 func (h *ClusterReferenceConsumerHandler) Generic(ctx context.Context, e event.GenericEvent, q workqueue.RateLimitingInterface) {
-	h.c.log.Info("ClusterReferenceConsumer Generic", e)
+	queuePatternsForCRC(e.Object, q)
+}
+
+func queuePatternsForCRC(obj client.Object, q workqueue.RateLimitingInterface) {
+	crc := obj.(*v1a1.ClusterReferenceConsumer)
+	for _, pn := range crc.PatternNames {
+		q.AddRateLimited(reconcile.Request{NamespacedName: types.NamespacedName{Name: pn}})
+	}
 }
