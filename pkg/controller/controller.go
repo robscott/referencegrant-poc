@@ -50,7 +50,6 @@ func NewController() *Controller {
 	kConfig := ctrl.GetConfigOrDie()
 	scheme := scheme.Scheme
 	v1a1.AddToScheme(scheme)
-	c.log.Info("k config", "c", kConfig.Host)
 
 	dClient, err := dynamic.NewForConfig(kConfig)
 	if err != nil {
@@ -91,6 +90,11 @@ func NewController() *Controller {
 
 func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	c.log.Info("Reconciling ClusterReferencePattern", "name", req.NamespacedName.Name)
+
+	// For some very strange reason, CR client expects "default" namespace for
+	// cluster-scoped resources and will fail without it being set.
+	req.NamespacedName.Namespace = "default"
+
 	crp := &v1a1.ClusterReferencePattern{}
 	err := c.crClient.Get(ctx, req.NamespacedName, crp)
 	if err != nil {
@@ -105,11 +109,9 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	targetGVR := schema.GroupVersionResource{Group: crp.Group, Version: crp.Version, Resource: crp.Resource}
 	targetList, err := c.dClient.Resource(targetGVR).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		c.log.Error(err, "failed to list GVR", targetGVR)
+		c.log.Error(err, "failed to list target for ClusterReferencePattern", targetGVR)
 		return ctrl.Result{}, err
 	}
-
-	c.log.Info("Above it all")
 
 	refs := c.getReferences(ctx, targetList, crp.Path)
 
@@ -121,8 +123,6 @@ func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	subjects := c.getSubjects(ctx, crcList, crp.Name)
-
-	c.log.Info("Refs", "r", refs, "s", subjects)
 
 	// TODO: Don't just blindly trust references, ensure ReferenceGrant allows them first
 	err = c.reconcileRBAC(ctx, crp, subjects, refs)
@@ -242,8 +242,6 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 		labelKeyPatternName: crp.Name,
 	}
 
-	c.log.Info("Reconciling RBAC")
-
 	// TODO: Clean this up + extract it out
 	// Namespace -> Group+Resource -> Resource Name
 	namespaceResourceNames := map[string]resourceNamesByGroupAndResource{}
@@ -262,16 +260,14 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 		names.Insert(ref.Name)
 	}
 
-	c.log.Info("Reconciling RBAC 2", "namespaceResourceNames", namespaceResourceNames)
-
 	baseVerbs := []string{"get", "watch", "list"}
-	// namespaceRoleNames := map[string]string{}
+	namespaceRoleNames := map[string]string{}
 	desiredRoles := map[string]rbacv1.Role{}
 
 	for ns, r := range namespaceResourceNames {
 		role := rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: crp.Name,
+				GenerateName: fmt.Sprintf("%s-", crp.Name),
 				Namespace:    ns,
 				Labels:       map[string]string{labelKeyPatternName: crp.Name},
 			},
@@ -296,12 +292,15 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 		return err
 	}
 
+	// TODO: Add proper reconciliation logic to compare desired and existing so
+	// we're not always creating new resources.
 	for _, dr := range desiredRoles {
 		err := c.crClient.Create(ctx, &dr)
 		if err != nil {
 			c.log.Error(err, "error creating Role")
 			return err
 		}
+		namespaceRoleNames[dr.Namespace] = dr.Name
 	}
 
 	roleBindingList := rbacv1.RoleBindingList{}
@@ -310,6 +309,29 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 		c.log.Error(err, "error listing RoleBindings")
 		return err
 	}
+
+	for ns, roleName := range namespaceRoleNames {
+		rb := rbacv1.RoleBinding{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: fmt.Sprintf("%s-", crp.Name),
+				Namespace:    ns,
+				Labels:       map[string]string{labelKeyPatternName: crp.Name},
+			},
+			Subjects: subjects,
+			RoleRef: rbacv1.RoleRef{
+				APIGroup: rbacv1.SchemeGroupVersion.Group,
+				Kind:     "Role",
+				Name:     roleName,
+			},
+		}
+		err := c.crClient.Create(ctx, &rb)
+		if err != nil {
+			c.log.Error(err, "error creating RoleBinding")
+			return err
+		}
+	}
+
+	c.log.Info("Completed RBAC Reconciliation", "rolesCreated", len(desiredRoles), "roleBindingsCreated", len(namespaceRoleNames))
 
 	return nil
 }
