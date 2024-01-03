@@ -30,17 +30,3 @@ to:
 - group: ""
   resource: secrets
   name: "acme-tls"
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: read-pods
-subjects:
-# # You can specify more than one "subject"
-# - kind: User
-#   name: jane # "name" is case sensitive
-#   apiGroup: rbac.authorization.k8s.io
-roleRef:
-  kind: Role #this must be Role or ClusterRole
-  name: pod-reader # this must match the name of the Role or ClusterRole you wish to bind to
-  apiGroup: rbac.authorization.k8s.io

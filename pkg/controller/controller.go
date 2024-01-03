@@ -1,3 +1,19 @@
+/*
+Copyright 2024 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
@@ -236,8 +252,18 @@ func splitGroupResource(gr groupResource) (string, string) {
 	return s[0], s[1]
 }
 
+type reconciliationResults struct {
+	rolesCreated        uint
+	rolesUpdated        uint
+	rolesDeleted        uint
+	roleBindingsCreated uint
+	roleBindingsUpdated uint
+	roleBindingsDeleted uint
+}
+
 func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferencePattern, subjects []rbacv1.Subject, references []reference) error {
 	var err error
+	rr := reconciliationResults{}
 	listOption := client.MatchingLabels{
 		labelKeyPatternName: crp.Name,
 	}
@@ -262,10 +288,10 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 
 	baseVerbs := []string{"get", "watch", "list"}
 	namespaceRoleNames := map[string]string{}
-	desiredRoles := map[string]rbacv1.Role{}
+	desiredRoles := map[string]*rbacv1.Role{}
 
 	for ns, r := range namespaceResourceNames {
-		role := rbacv1.Role{
+		role := &rbacv1.Role{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName: fmt.Sprintf("%s-", crp.Name),
 				Namespace:    ns,
@@ -285,37 +311,91 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 		desiredRoles[ns] = role
 	}
 
+	existingRoles := map[string]rbacv1.Role{}
 	roleList := rbacv1.RoleList{}
+	rolesToDelete := []rbacv1.Role{}
 	err = c.crClient.List(ctx, &roleList, listOption)
 	if err != nil {
 		c.log.Error(err, "error listing Roles")
 		return err
 	}
+	for _, role := range roleList.Items {
+		existingRole, isExisting := existingRoles[role.Namespace]
+		desiredRole, isDesired := desiredRoles[role.Namespace]
+
+		// We want at most one role per ClusterReferencePattern and Namespace,
+		// anything beyond that should be deleted.
+		if !isExisting && isDesired {
+			existingRole = role
+			existingRoles[role.Namespace] = existingRole
+			desiredRole.Name = existingRole.Name
+			desiredRole.GenerateName = ""
+		} else {
+			rolesToDelete = append(rolesToDelete, role)
+		}
+	}
 
 	// TODO: Add proper reconciliation logic to compare desired and existing so
-	// we're not always creating new resources.
+	// we're not always updating resources even if they don't need to change.
 	for _, dr := range desiredRoles {
-		err := c.crClient.Create(ctx, &dr)
-		if err != nil {
-			c.log.Error(err, "error creating Role")
-			return err
+		if dr.Name != "" {
+			c.log.Info("Updating role", "role", dr)
+			err := c.crClient.Update(ctx, dr)
+			if err != nil {
+				c.log.Error(err, "error updating Role")
+				return err
+			}
+			rr.rolesUpdated++
+		} else {
+			c.log.Info("Creating role", "role", dr)
+			err := c.crClient.Create(ctx, dr)
+			if err != nil {
+				c.log.Error(err, "error creating Role")
+				return err
+			}
+			rr.rolesCreated++
 		}
 		namespaceRoleNames[dr.Namespace] = dr.Name
 	}
 
+	for _, rtd := range rolesToDelete {
+		c.log.Info("Deleting role", "role", rtd)
+		err := c.crClient.Delete(ctx, &rtd)
+		if err != nil {
+			c.log.Error(err, "error deleting Role")
+			return err
+		}
+		rr.rolesDeleted++
+	}
+
+	existingRoleBindings := map[string]rbacv1.RoleBinding{}
 	roleBindingList := rbacv1.RoleBindingList{}
+	roleBindingsToDelete := []rbacv1.RoleBinding{}
 	err = c.crClient.List(ctx, &roleBindingList, listOption)
 	if err != nil {
 		c.log.Error(err, "error listing RoleBindings")
 		return err
 	}
 
+	for _, rb := range roleBindingList.Items {
+		_, isExisting := existingRoleBindings[rb.Namespace]
+		desiredRole, isDesired := desiredRoles[rb.Namespace]
+
+		// We want at most one RoleBinding per ClusterReferencePattern and
+		// Namespace, anything beyond that should be deleted. We also can't
+		// change the RoleRef on an existing RoleBinding.
+		if !isExisting && isDesired && rb.RoleRef.Name == desiredRole.Name {
+			existingRoleBindings[rb.Namespace] = rb
+		} else {
+			roleBindingsToDelete = append(roleBindingsToDelete, rb)
+		}
+	}
+
 	for ns, roleName := range namespaceRoleNames {
 		rb := rbacv1.RoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
-				GenerateName: fmt.Sprintf("%s-", crp.Name),
-				Namespace:    ns,
-				Labels:       map[string]string{labelKeyPatternName: crp.Name},
+				Namespace: ns,
+				Labels:    map[string]string{labelKeyPatternName: crp.Name},
 			},
 			Subjects: subjects,
 			RoleRef: rbacv1.RoleRef{
@@ -324,14 +404,38 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 				Name:     roleName,
 			},
 		}
-		err := c.crClient.Create(ctx, &rb)
-		if err != nil {
-			c.log.Error(err, "error creating RoleBinding")
-			return err
+		if existingRB, ok := existingRoleBindings[rb.Namespace]; ok {
+			c.log.Info("Updating RoleBinding", "RoleBinding", rb)
+			rb.Name = existingRB.Name
+			err := c.crClient.Update(ctx, &rb)
+			if err != nil {
+				c.log.Error(err, "error updating RoleBinding")
+				return err
+			}
+			rr.roleBindingsUpdated++
+		} else {
+			rb.GenerateName = fmt.Sprintf("%s-", crp.Name)
+			c.log.Info("Creating RoleBinding", "RoleBinding", rb)
+			err := c.crClient.Create(ctx, &rb)
+			if err != nil {
+				c.log.Error(err, "error creating RoleBinding")
+				return err
+			}
+			rr.roleBindingsCreated++
 		}
 	}
 
-	c.log.Info("Completed RBAC Reconciliation", "rolesCreated", len(desiredRoles), "roleBindingsCreated", len(namespaceRoleNames))
+	for _, rbtd := range roleBindingsToDelete {
+		c.log.Info("Deleting RoleBinding", "RoleBinding", rbtd)
+		err := c.crClient.Delete(ctx, &rbtd)
+		if err != nil {
+			c.log.Error(err, "error deleting RoleBinding")
+			return err
+		}
+		rr.roleBindingsDeleted++
+	}
+
+	c.log.Info("Completed RBAC Reconciliation", "Results", fmt.Sprintf("%+v", rr))
 
 	return nil
 }
