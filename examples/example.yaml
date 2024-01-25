@@ -1,0 +1,44 @@
+kind: ClusterReferenceGrant
+apiVersion: reference.authorization.k8s.io/v1alpha1
+metadata:
+  name: gateway-tls
+from:
+  group: gateway.networking.k8s.io
+  resource: gateways
+  version: v1
+  path: ".spec.listeners[*].tls.certificateRefs[*]"
+to:
+  group: ""
+  resource: secrets
+for: tls
+---
+kind: ClusterReferenceConsumer
+apiVersion: reference.authorization.k8s.io/v1alpha1
+metadata:
+  name: contour-gateway
+subject:
+  kind: ServiceAccount
+  name: contour
+  namespace: contour-system
+from:
+  group: gateway.networking.k8s.io
+  resource: gateways
+to:
+  group: ""
+  resource: secrets
+for: tls
+---
+kind: ReferenceGrant
+apiVersion: reference.authorization.k8s.io/v1alpha1
+metadata:
+  name: prod-gateways
+from:
+  group: gateway.networking.k8s.io
+  resource: gateways
+  namespace: prod
+to:
+  group: ""
+  resource: secrets
+  names:
+  - acme-tls
+for: tls

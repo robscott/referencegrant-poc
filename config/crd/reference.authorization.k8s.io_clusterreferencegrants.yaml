@@ -5,16 +5,16 @@ metadata:
   annotations:
     api-approved.kubernetes.io: unapproved
     controller-gen.kubebuilder.io/version: v0.13.0
-  name: clusterreferencepatterns.reference.authorization.k8s.io
+  name: clusterreferencegrants.reference.authorization.k8s.io
 spec:
   group: reference.authorization.k8s.io
   names:
-    kind: ClusterReferencePattern
-    listKind: ClusterReferencePatternList
-    plural: clusterreferencepatterns
+    kind: ClusterReferenceGrant
+    listKind: ClusterReferenceGrantList
+    plural: clusterreferencegrants
     shortNames:
-    - crp
-    singular: clusterreferencepattern
+    - crg
+    singular: clusterreferencegrant
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -24,7 +24,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterReferencePattern identifies a common form of referencing
+        description: ClusterReferenceGrant identifies a common form of referencing
           pattern. This can then be used with ReferenceGrants to selectively allow
           references.
         properties:
@@ -33,9 +33,25 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
-          group:
-            description: Group is the group of the referent.
+          for:
             type: string
+          from:
+            properties:
+              group:
+                type: string
+              path:
+                description: Path is the path which this reference may come from.
+                type: string
+              resource:
+                type: string
+              version:
+                type: string
+            required:
+            - group
+            - path
+            - resource
+            - version
+            type: object
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -43,20 +59,20 @@ spec:
             type: string
           metadata:
             type: object
-          path:
-            description: Path is the path which this reference may come from.
-            type: string
-          resource:
-            description: Resource is the resource of the referent.
-            type: string
-          version:
-            description: Version is the API version of this resource this path applies
-              to.
-            type: string
+          to:
+            properties:
+              group:
+                type: string
+              resource:
+                type: string
+            required:
+            - group
+            - resource
+            type: object
         required:
-        - group
-        - path
-        - resource
+        - for
+        - from
+        - to
         type: object
     served: true
     storage: true

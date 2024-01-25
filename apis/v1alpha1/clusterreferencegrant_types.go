@@ -21,35 +21,27 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +genclient
 // +genclient:nonNamespaced
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:shortName=crp
+// +kubebuilder:resource:shortName=crg
 // +kubebuilder:metadata:annotations=api-approved.kubernetes.io=unapproved
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:storageversion
 
-// ClusterReferencePattern identifies a common form of referencing pattern. This
+// ClusterReferenceGrant identifies a common form of referencing pattern. This
 // can then be used with ReferenceGrants to selectively allow references.
-type ClusterReferencePattern struct {
+type ClusterReferenceGrant struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// Group is the group of the referent.
-	Group string `json:"group"`
-
-	// Resource is the resource of the referent.
-	Resource string `json:"resource"`
-
-	// Version is the API version of this resource this path applies to.
-	Version string `json:"version,omitempty"`
-
-	// Path is the path which this reference may come from.
-	Path string `json:"path"`
+	From GroupVersionResourcePath `json:"from"`
+	To   GroupResource            `json:"to"`
+	For  For                      `json:"for"`
 }
 
 // +kubebuilder:object:root=true
 
-// ClusterReferencePatternList contains a list of ClusterReferencePattern
-type ClusterReferencePatternList struct {
+// ClusterReferenceGrantList contains a list of ClusterReferenceGrant
+type ClusterReferenceGrantList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ClusterReferencePattern `json:"items"`
+	Items           []ClusterReferenceGrant `json:"items"`
 }

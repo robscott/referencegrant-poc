@@ -14,8 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package v1alpha1
 
-// func main() {
-// 	NewController()
-// }
+type GroupResource struct {
+	Group    string `json:"group"`
+	Resource string `json:"resource"`
+}
+
+type GroupResourceNamespace struct {
+	Group     string `json:"group"`
+	Resource  string `json:"resource"`
+	Namespace string `json:"namespace"`
+}
+
+type GroupVersionResourcePath struct {
+	Group    string `json:"group"`
+	Resource string `json:"resource"`
+	Version  string `json:"version"`
+	// Path is the path which this reference may come from.
+	Path string `json:"path"`
+}
+
+type For string
