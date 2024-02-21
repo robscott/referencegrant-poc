@@ -33,9 +33,21 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
+          classNames:
+            description: ClassNames is an optional list of applicable classes for
+              this Consumer if the "From" API is partitioned by class
+            items:
+              type: string
+            type: array
           for:
+            description: "For refers to the purpose of this reference. (Cluster)ReferenceGrants
+              matching the From, To, and For of this resource will be authorized for
+              the Subject of this resource. \n This value must be a valid DNS label
+              as defined per RFC-1035."
             type: string
           from:
+            description: From refers to the group and resource that these references
+              originate from.
             properties:
               group:
                 type: string
@@ -53,7 +65,8 @@ spec:
           metadata:
             type: object
           subject:
-            description: Subject is a copy of RBAC Subject that excludes APIGroup.
+            description: Subject refers to the subject that is a consumer of the referenced
+              pattern(s).
             properties:
               kind:
                 description: Kind of object being referenced. Values defined by this
@@ -74,6 +87,8 @@ spec:
             - name
             type: object
           to:
+            description: To refers to the group and resource that these references
+              target.
             properties:
               group:
                 type: string
