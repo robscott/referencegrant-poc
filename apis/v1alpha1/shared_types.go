@@ -27,12 +27,4 @@ type GroupResourceNamespace struct {
 	Namespace string `json:"namespace"`
 }
 
-type GroupVersionResourcePath struct {
-	Group    string `json:"group"`
-	Resource string `json:"resource"`
-	Version  string `json:"version"`
-	// Path is the path which this reference may come from.
-	Path string `json:"path"`
-}
-
 type For string

@@ -32,9 +32,33 @@ type ClusterReferenceGrant struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	From GroupVersionResourcePath `json:"from"`
-	To   GroupResource            `json:"to"`
-	For  For                      `json:"for"`
+	// From refers to the group and resource that these references originate
+	// from.
+	From GroupResource `json:"from"`
+
+	// Versions describes how references and class partitions are defined for
+	// the "From" API. Each Version string must be unique.
+	Versions []VersionedReferencePaths `json:"versions"`
+}
+
+type VersionedReferencePaths struct {
+	Version    string          `json:"version"`
+	References []ReferencePath `json:"references"`
+}
+
+type ReferencePath struct {
+	// Path in the "From" API where referenced names come from.
+	Path string `json:"path"`
+
+	// GroupResource for the target names from the Path
+	To GroupResource `json:"to"`
+
+	// For refers to the purpose of this reference. Subjects of
+	// ClusterReferenceConsumers will be authorized to follow references
+	// matching the From, To, and For of this resource.
+	//
+	// This value must be a valid DNS label as defined per RFC-1035.
+	For string `json:"for"`
 }
 
 // +kubebuilder:object:root=true
