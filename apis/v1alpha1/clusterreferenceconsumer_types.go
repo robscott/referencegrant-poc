@@ -34,10 +34,26 @@ type ClusterReferenceConsumer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Subject Subject       `json:"subject"`
-	From    GroupResource `json:"from"`
-	To      GroupResource `json:"to"`
-	For     For           `json:"for"`
+	// Subject refers to the subject that is a consumer of the referenced
+	// pattern(s).
+	Subject Subject `json:"subject"`
+
+	// ClassNames is an optional list of applicable classes for this Consumer if
+	// the "From" API is partitioned by class
+	ClassNames []string `json:"classNames,omitempty"` // TODO: how are classNames validated?
+
+	// From refers to the group and resource that these references originate from.
+	From GroupResource `json:"from"`
+
+	// To refers to the group and resource that these references target.
+	To GroupResource `json:"to"`
+
+	// For refers to the purpose of this reference. (Cluster)ReferenceGrants
+	// matching the From, To, and For of this resource will be authorized for
+	// the Subject of this resource.
+	//
+	// This value must be a valid DNS label as defined per RFC-1035.
+	For string `json:"for"`
 }
 
 // +kubebuilder:object:root=true

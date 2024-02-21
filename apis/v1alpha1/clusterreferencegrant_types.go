@@ -42,7 +42,14 @@ type ClusterReferenceGrant struct {
 }
 
 type VersionedReferencePaths struct {
-	Version    string          `json:"version"`
+	Version string `json:"version"`
+
+	// ClassPath optionally refers to a field within an API that partitions it
+	// on className.
+	// It is an optional way to partition API access to consumers by their
+	// applicable classNames.
+	ClassPath string `json:"classPath,omitempty"`
+
 	References []ReferencePath `json:"references"`
 }
 
