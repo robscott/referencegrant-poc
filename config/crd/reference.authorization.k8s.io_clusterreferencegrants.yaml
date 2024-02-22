@@ -15,7 +15,7 @@ spec:
     shortNames:
     - crg
     singular: clusterreferencegrant
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .metadata.creationTimestamp

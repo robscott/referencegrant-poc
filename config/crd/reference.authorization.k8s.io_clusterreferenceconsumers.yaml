@@ -15,7 +15,7 @@ spec:
     shortNames:
     - crc
     singular: clusterreferenceconsumer
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .metadata.creationTimestamp

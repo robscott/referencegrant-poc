@@ -23,7 +23,7 @@ import (
 // +genclient
 // +genclient:nonNamespaced
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:shortName=crc
+// +kubebuilder:resource:shortName=crc,scope=Cluster
 // +kubebuilder:metadata:annotations=api-approved.kubernetes.io=unapproved
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:storageversion

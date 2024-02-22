@@ -20,7 +20,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // +genclient
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:shortName=rg
+// +kubebuilder:resource:shortName=rg,scope=Namespaced
 // +kubebuilder:metadata:annotations=api-approved.kubernetes.io=unapproved
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:storageversion
