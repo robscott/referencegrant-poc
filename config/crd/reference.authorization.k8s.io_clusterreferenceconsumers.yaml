@@ -24,9 +24,9 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterReferenceConsumer identifies a consumer of a type of reference.
-          For example, a consumer may support references from Gateways to Secrets
-          for tls.
+        description: ClusterReferenceConsumer identifies a consumer and its types
+          of references. For example, a consumer may support references from Gateways
+          to Secrets for tls-serving and Gateways to ConfigMaps for tls-client-validation.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -39,24 +39,6 @@ spec:
             items:
               type: string
             type: array
-          for:
-            description: "For refers to the purpose of this reference. (Cluster)ReferenceGrants
-              matching the From, To, and For of this resource will be authorized for
-              the Subject of this resource. \n This value must be a valid DNS label
-              as defined per RFC-1035."
-            type: string
-          from:
-            description: From refers to the group and resource that these references
-              originate from.
-            properties:
-              group:
-                type: string
-              resource:
-                type: string
-            required:
-            - group
-            - resource
-            type: object
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -64,6 +46,49 @@ spec:
             type: string
           metadata:
             type: object
+          references:
+            description: References describe all of the resources a consumer may refer
+              to
+            items:
+              description: ConsumerReference describes from which originating GroupResource
+                to which target GroupResource a reference is for and for what purpose
+              properties:
+                for:
+                  description: "For refers to the purpose of this reference. (Cluster)ReferenceGrants
+                    matching the From, To, and For of this resource will be authorized
+                    for the Subject of this resource. \n This value must be a valid
+                    DNS label as defined per RFC-1035."
+                  type: string
+                from:
+                  description: From refers to the group and resource that these references
+                    originate from.
+                  properties:
+                    group:
+                      type: string
+                    resource:
+                      type: string
+                  required:
+                  - group
+                  - resource
+                  type: object
+                to:
+                  description: To refers to the group and resource that these references
+                    target.
+                  properties:
+                    group:
+                      type: string
+                    resource:
+                      type: string
+                  required:
+                  - group
+                  - resource
+                  type: object
+              required:
+              - for
+              - from
+              - to
+              type: object
+            type: array
           subject:
             description: Subject refers to the subject that is a consumer of the referenced
               pattern(s).
@@ -86,23 +111,9 @@ spec:
             - kind
             - name
             type: object
-          to:
-            description: To refers to the group and resource that these references
-              target.
-            properties:
-              group:
-                type: string
-              resource:
-                type: string
-            required:
-            - group
-            - resource
-            type: object
         required:
-        - for
-        - from
+        - references
         - subject
-        - to
         type: object
     served: true
     storage: true
