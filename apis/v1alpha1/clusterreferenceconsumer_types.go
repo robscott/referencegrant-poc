@@ -28,8 +28,9 @@ import (
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:storageversion
 
-// ClusterReferenceConsumer identifies a consumer of a type of reference. For
-// example, a consumer may support references from Gateways to Secrets for tls.
+// ClusterReferenceConsumer identifies a consumer and its types of references.
+// For example, a consumer may support references from Gateways to Secrets for
+// tls-serving and Gateways to ConfigMaps for tls-client-validation.
 type ClusterReferenceConsumer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -40,8 +41,15 @@ type ClusterReferenceConsumer struct {
 
 	// ClassNames is an optional list of applicable classes for this Consumer if
 	// the "From" API is partitioned by class
-	ClassNames []string `json:"classNames,omitempty"` // TODO: how are classNames validated?
+	ClassNames []string `json:"classNames,omitempty"`
 
+	// References describe all of the resources a consumer may refer to
+	References []ConsumerReference `json:"references"`
+}
+
+// ConsumerReference describes from which originating GroupResource to which
+// target GroupResource a reference is for and for what purpose
+type ConsumerReference struct {
 	// From refers to the group and resource that these references originate from.
 	From GroupResource `json:"from"`
 
