@@ -15,7 +15,7 @@ spec:
     shortNames:
     - crc
     singular: clusterreferenceconsumer
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .metadata.creationTimestamp
@@ -24,19 +24,21 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ClusterReferenceConsumer identifies a common form of referencing
-          pattern. This can then be used with ReferenceGrants to selectively allow
-          references.
+        description: ClusterReferenceConsumer identifies a consumer and its types
+          of references. For example, a consumer may support references from Gateways
+          to Secrets for tls-serving and Gateways to ConfigMaps for tls-client-validation.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
-          baselineGrant:
-            description: BaselineGrant allows granting access to same-namespace references
-              by default without the need for ReferenceGrants.
-            type: string
+          classNames:
+            description: ClassNames is an optional list of applicable classes for
+              this Consumer if the "From" API is partitioned by class
+            items:
+              type: string
+            type: array
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -44,20 +46,53 @@ spec:
             type: string
           metadata:
             type: object
-          patternNames:
-            description: The names of the ClusterReferencePatterns this consumer implements.
+          references:
+            description: References describe all of the resources a consumer may refer
+              to
             items:
-              type: string
+              description: ConsumerReference describes from which originating GroupResource
+                to which target GroupResource a reference is for and for what purpose
+              properties:
+                for:
+                  description: "For refers to the purpose of this reference. (Cluster)ReferenceGrants
+                    matching the From, To, and For of this resource will be authorized
+                    for the Subject of this resource. \n This value must be a valid
+                    DNS label as defined per RFC-1035."
+                  type: string
+                from:
+                  description: From refers to the group and resource that these references
+                    originate from.
+                  properties:
+                    group:
+                      type: string
+                    resource:
+                      type: string
+                  required:
+                  - group
+                  - resource
+                  type: object
+                to:
+                  description: To refers to the group and resource that these references
+                    target.
+                  properties:
+                    group:
+                      type: string
+                    resource:
+                      type: string
+                  required:
+                  - group
+                  - resource
+                  type: object
+              required:
+              - for
+              - from
+              - to
+              type: object
             type: array
           subject:
             description: Subject refers to the subject that is a consumer of the referenced
               pattern(s).
             properties:
-              apiGroup:
-                description: APIGroup holds the API group of the referenced subject.
-                  Defaults to "" for ServiceAccount subjects. Defaults to "rbac.authorization.k8s.io"
-                  for User and Group subjects.
-                type: string
               kind:
                 description: Kind of object being referenced. Values defined by this
                   API group are "User", "Group", and "ServiceAccount". If the Authorizer
@@ -70,16 +105,14 @@ spec:
               namespace:
                 description: Namespace of the referenced object.  If the object kind
                   is non-namespace, such as "User" or "Group", and this value is not
-                  empty the Authorizer should report an error.
+                  empty the Authorizer should report an error. +optional
                 type: string
             required:
             - kind
             - name
             type: object
-            x-kubernetes-map-type: atomic
         required:
-        - baselineGrant
-        - patternNames
+        - references
         - subject
         type: object
     served: true

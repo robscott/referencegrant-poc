@@ -1,0 +1,109 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    api-approved.kubernetes.io: unapproved
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: clusterreferencegrants.reference.authorization.k8s.io
+spec:
+  group: reference.authorization.k8s.io
+  names:
+    kind: ClusterReferenceGrant
+    listKind: ClusterReferenceGrantList
+    plural: clusterreferencegrants
+    shortNames:
+    - crg
+    singular: clusterreferencegrant
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ClusterReferenceGrant identifies a common form of referencing
+          pattern. This can then be used with ReferenceGrants to selectively allow
+          references.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          from:
+            description: From refers to the group and resource that these references
+              originate from.
+            properties:
+              group:
+                type: string
+              resource:
+                type: string
+            required:
+            - group
+            - resource
+            type: object
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          versions:
+            description: Versions describes how references and class partitions are
+              defined for the "From" API. Each Version string must be unique.
+            items:
+              properties:
+                classPath:
+                  description: ClassPath optionally refers to a field within an API
+                    that partitions it on className. It is an optional way to partition
+                    API access to consumers by their applicable classNames.
+                  type: string
+                references:
+                  items:
+                    properties:
+                      for:
+                        description: "For refers to the purpose of this reference.
+                          Subjects of ClusterReferenceConsumers will be authorized
+                          to follow references matching the From, To, and For of this
+                          resource. \n This value must be a valid DNS label as defined
+                          per RFC-1035."
+                        type: string
+                      path:
+                        description: Path in the "From" API where referenced names
+                          come from.
+                        type: string
+                      to:
+                        description: GroupResource for the target names from the Path
+                        properties:
+                          group:
+                            type: string
+                          resource:
+                            type: string
+                        required:
+                        - group
+                        - resource
+                        type: object
+                    required:
+                    - for
+                    - path
+                    - to
+                    type: object
+                  type: array
+                version:
+                  type: string
+              required:
+              - references
+              - version
+              type: object
+            type: array
+        required:
+        - from
+        - versions
+        type: object
+    served: true
+    storage: true
+    subresources: {}

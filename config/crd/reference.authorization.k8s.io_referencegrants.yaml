@@ -33,23 +33,24 @@ spec:
               of an object. Servers should convert recognized schemas to the latest
               internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
+          for:
+            type: string
           from:
-            description: "From describes the trusted namespaces and kinds that can
+            description: From describes the trusted namespaces and kinds that can
               reference the resources described in the Pattern and optionally the
-              \"to\" list. \n Support: Core"
-            items:
-              description: ReferenceGrantFrom describes trusted namespaces.
-              properties:
-                namespace:
-                  description: "Namespace is the namespace of the referent. \n Support:
-                    Core"
-                  type: string
-              required:
-              - namespace
-              type: object
-            maxItems: 16
-            minItems: 1
-            type: array
+              "to" list.
+            properties:
+              group:
+                type: string
+              namespace:
+                type: string
+              resource:
+                type: string
+            required:
+            - group
+            - namespace
+            - resource
+            type: object
           kind:
             description: 'Kind is a string value representing the REST resource this
               object represents. Servers may infer this from the endpoint the client
@@ -57,39 +58,33 @@ spec:
             type: string
           metadata:
             type: object
-          patternName:
-            description: PatternName refers to the name of the ClusterReferencePattern
-              this allows.
-            type: string
           to:
             description: To describes the names of resources that may be referenced
               from the namespaces described in "From" following the linked pattern.
               When unspecified or empty, references to all resources matching the
               pattern are allowed.
-            items:
-              description: ReferenceGrantTo describes what Names are allowed as targets
-                of the references.
-              properties:
-                group:
-                  description: Group is the group of the referent.
+            properties:
+              group:
+                description: Group is the group of the referents.
+                type: string
+              names:
+                description: Names are the names of the referents. When unspecified
+                  or empty, no access is granted.
+                items:
                   type: string
-                name:
-                  description: Name is the name of the referent. When unspecified,
-                    this policy refers to all resources of the specified Group and
-                    Kind in the local namespace.
-                  type: string
-                resource:
-                  description: Resource is the resource of the referent.
-                  type: string
-              required:
-              - group
-              - resource
-              type: object
-            maxItems: 16
-            type: array
+                maxItems: 16
+                type: array
+              resource:
+                description: Resource is the resource of the referents.
+                type: string
+            required:
+            - group
+            - names
+            - resource
+            type: object
         required:
+        - for
         - from
-        - patternName
         - to
         type: object
     served: true

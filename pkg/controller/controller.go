@@ -28,11 +28,11 @@ import (
 
 	"github.com/go-logr/logr"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -87,7 +87,7 @@ func NewController() *Controller {
 	err = ctrl.NewControllerManagedBy(manager).
 		Named("referencegrant-poc").
 		Watches(&v1a1.ClusterReferenceConsumer{}, NewClusterReferenceConsumerHandler(c)).
-		Watches(&v1a1.ClusterReferencePattern{}, NewClusterReferencePatternHandler(c)).
+		Watches(&v1a1.ClusterReferenceGrant{}, NewClusterReferenceGrantHandler(c)).
 		Watches(&v1a1.ReferenceGrant{}, NewReferenceGrantHandler(c)).
 		Complete(c)
 
@@ -105,37 +105,20 @@ func NewController() *Controller {
 }
 
 func (c *Controller) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	c.log.Info("Reconciling ClusterReferencePattern", "name", req.NamespacedName.Name)
+	c.log.Info("Reconciling for", "name", req.NamespacedName.Name)
 
-	// For some very strange reason, CR client expects "default" namespace for
-	// cluster-scoped resources and will fail without it being set.
-	req.NamespacedName.Namespace = "default"
+	// fromGroup, fromResource, toGroup, toResource, forReason := parseQueueKey(req.NamespacedName)
+	referenceGrants, clusterReferenceGrants, clusterReferenceConsumers, err := c.getResourcesFor(ctx, req.NamespacedName.Name)
 
-	crp := &v1a1.ClusterReferencePattern{}
-	err := c.crClient.Get(ctx, req.NamespacedName, crp)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			// TODO: Some form of cleanup is needed here
+	for _, crg := range clusterReferenceGrants {
+		// TODO: Have informers for each target resource of a ClusterReferenceGrant
+		targetGVR := schema.GroupVersionResource{Group: crg.From.Group, Version: crg.From.Version, Resource: crg.From.Version}
+		targetList, err := c.dClient.Resource(targetGVR).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			c.log.Error(err, "failed to list target for ClusterReferenceGrant", targetGVR)
+			return ctrl.Result{}, err
 		}
-		c.log.Error(err, "error fetching ClusterReferencePattern")
-		return ctrl.Result{}, err
-	}
-
-	// TODO: Have informers for each target resource of a ClusterReferencePattern
-	targetGVR := schema.GroupVersionResource{Group: crp.Group, Version: crp.Version, Resource: crp.Resource}
-	targetList, err := c.dClient.Resource(targetGVR).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		c.log.Error(err, "failed to list target for ClusterReferencePattern", targetGVR)
-		return ctrl.Result{}, err
-	}
-
-	refs := c.getReferences(ctx, targetList, crp.Path)
-
-	crcList := &v1a1.ClusterReferenceConsumerList{}
-	err = c.crClient.List(ctx, crcList)
-	if err != nil {
-		c.log.Error(err, "could not list ClusterReferenceConsumers")
-		return ctrl.Result{}, err
+		refs := c.getReferences(ctx, targetList, crc.Path)
 	}
 
 	subjects := c.getSubjects(ctx, crcList, crp.Name)
@@ -261,7 +244,7 @@ type reconciliationResults struct {
 	roleBindingsDeleted uint
 }
 
-func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferencePattern, subjects []rbacv1.Subject, references []reference) error {
+func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferenceGrant, subjects []rbacv1.Subject, references []reference) error {
 	var err error
 	rr := reconciliationResults{}
 	listOption := client.MatchingLabels{
@@ -323,7 +306,7 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 		existingRole, isExisting := existingRoles[role.Namespace]
 		desiredRole, isDesired := desiredRoles[role.Namespace]
 
-		// We want at most one role per ClusterReferencePattern and Namespace,
+		// We want at most one role per ClusterReferenceGrant and Namespace,
 		// anything beyond that should be deleted.
 		if !isExisting && isDesired {
 			existingRole = role
@@ -381,7 +364,7 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 		_, isExisting := existingRoleBindings[rb.Namespace]
 		desiredRole, isDesired := desiredRoles[rb.Namespace]
 
-		// We want at most one RoleBinding per ClusterReferencePattern and
+		// We want at most one RoleBinding per ClusterReferenceGrant and
 		// Namespace, anything beyond that should be deleted. We also can't
 		// change the RoleRef on an existing RoleBinding.
 		if !isExisting && isDesired && rb.RoleRef.Name == desiredRole.Name {
@@ -438,4 +421,66 @@ func (c *Controller) reconcileRBAC(ctx context.Context, crp *v1a1.ClusterReferen
 	c.log.Info("Completed RBAC Reconciliation", "Results", fmt.Sprintf("%+v", rr))
 
 	return nil
+}
+func (c *Controller) getResourcesFor(ctx context.Context, forReason string) ([]v1a1.ReferenceGrant, []v1a1.ClusterReferenceGrant, []v1a1.ClusterReferenceConsumer, error) {
+	rgList := &v1a1.ReferenceGrantList{}
+	err := c.crClient.List(ctx, rgList)
+	if err != nil {
+		c.log.Error(err, "could not list ReferenceGrants")
+		return nil, nil, nil, err
+	}
+	referenceGrants := []v1a1.ReferenceGrant{}
+	for _, rg := range rgList.Items {
+		if string(rg.For) == forReason {
+			referenceGrants = append(referenceGrants, rg)
+		}
+	}
+
+	crgList := &v1a1.ClusterReferenceGrantList{}
+	err = c.crClient.List(ctx, rgList)
+	if err != nil {
+		c.log.Error(err, "could not list ClusterReferenceGrants")
+		return nil, nil, nil, err
+	}
+	clusterReferenceGrants := []v1a1.ClusterReferenceGrant{}
+	for _, crg := range crgList.Items {
+		if string(crg.For) == forReason {
+			clusterReferenceGrants = append(clusterReferenceGrants, crg)
+		}
+	}
+
+	crcList := &v1a1.ClusterReferenceConsumerList{}
+	err = c.crClient.List(ctx, crcList)
+	if err != nil {
+		c.log.Error(err, "could not list ClusterReferenceConsumers")
+		return nil, nil, nil, err
+	}
+	clusterReferenceConsumers := []v1a1.ClusterReferenceConsumer{}
+	for _, crc := range crcList.Items {
+		if string(crc.For) == forReason {
+			clusterReferenceConsumers = append(clusterReferenceConsumers, crc)
+		}
+	}
+
+	return rgList.Items, crgList.Items, crcList.Items, nil
+}
+
+func generateQueueKey(fromGroup, fromResource, toGroup, toResource, forReason string) types.NamespacedName {
+	nn := types.NamespacedName{Name: forReason}
+	nn.Namespace = fmt.Sprintf("%s/%s-%s/%s")
+	return nn
+}
+
+func parseQueueKey(nn types.NamespacedName) (string, string, string, string, string) {
+	fromTo := strings.Split(nn.Namespace, "-")
+	from := fromTo[0]
+	fromGR := strings.Split(from, "/")
+	fromGroup := fromGR[0]
+	fromResource := fromGR[1]
+	to := fromTo[1]
+	toGR := strings.Split(to, "/")
+	toGroup := toGR[0]
+	toResource := toGR[1]
+
+	return fromGroup, fromResource, toGroup, toResource, nn.Name
 }

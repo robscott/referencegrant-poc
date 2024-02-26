@@ -1,0 +1,145 @@
+---
+# Authors of APIs can bundle ClusterReferenceGrants with their API definitions
+# for any references they expect to be common.
+# API's can opt-in to partition references by class names.
+# Classes are a normalization of the IngressClass, GatewayClass, StorageClass
+# pattern. The ClusterReferenceGrant only needs to extract class names -- no
+# knowledge of the specialized IngressClass/GatewayClass/StorageClass API is
+# needed.
+# References and classes across multiple API versions are supported.
+
+# For example, Gateway API could bundle the following ClusterReferenceGrant to 
+# authorize same-namespace references from Gateways to Secrets for "tls-serving"
+# as well as same-namespace references from Gateways to Secrets and ConfigMaps for "tls-client-validation".
+# Gateways are partitioned by GatewayClass. Access to references of a particular
+# gatewayClassName should only be given to ClusterReferenceConsumers pertaining to
+# that class.
+# Proposed fields from GEP-91 are added to the v1 version, but not v1beta1.
+kind: ClusterReferenceGrant
+apiVersion: reference.authorization.k8s.io/v1alpha1
+metadata:
+  name: gateways
+from:
+  group: gateway.networking.k8s.io
+  resource: gateways
+versions:
+  - version: v1
+    classPath: ".spec.gatewayClassName"
+    references:
+      - path: "$.spec.listeners[*].tls.certificateRefs[[?(@.kind=='Secret')].name"
+        # path: "$.spec.listeners[*].tls.certificateRefs[[?(@.group=='' && @.kind=='Secret')].name"  # Kubernetes JSONPath doesn't actually support this kind of compound boolean filter expression
+        to:
+          group: ""
+          resource: secrets
+        for: tls-serving
+      - path: "$.spec.listeners[*].tls.clientValidation.caCertificateRefs[[?(@.kind=='Secret')].name"
+        # path: "$.spec.listeners[*].tls.clientValidation.caCertificateRefs[[?(@.group=='' && @.kind=='Secret')].name"  # Kubernetes JSONPath doesn't actually support this kind of compound boolean filter expression
+        to:
+          group: ""
+          resource: secrets
+        for: tls-client-validation
+      - path: "$.spec.listeners[*].tls.clientValidation.caCertificateRefs[[?(@.kind=='ConfigMap')].name"
+        # path: "$.spec.listeners[*].tls.clientValidation.caCertificateRefs[[?(@.group=='' && @.kind=='ConfigMap')].name"  # Kubernetes JSONPath doesn't actually support this kind of compound boolean filter expression
+        to:
+          group: ""
+          resource: configmaps
+        for: tls-client-validation
+  - version: v1beta1
+    classPath: ".spec.gatewayClassName"
+    references:
+      - path: "$.spec.listeners[*].tls.certificateRefs[[?(@.kind=='Secret')].name"
+        # path: "$.spec.listeners[*].tls.certificateRefs[[?(@.group=='' && @.kind=='Secret')].name"  # Kubernetes JSONPath doesn't actually support this kind of compound boolean filter expression
+        to:
+          group: ""
+          resource: secrets
+        for: tls-serving
+
+---
+# Implementations of APIs can bundle ClusterReferenceConsumer resources as part of
+# their deployment. This resource links a subject (likely the ServiceAccount
+# used by the controller) to matching (Cluster)ReferenceGrants. The subject of
+# this ClusterReferenceConsumer will receive authorization for any
+# (Cluster)ReferenceGrant with matching `from`, `to`, and `for` values.
+# If the ClusterReferenceGrant is also partitioning by class, the class name
+# retrieved from the `classPath` will also need to be contained within the matching 
+# ClusterReferenceConsumer `classNames` list.
+kind: ClusterReferenceConsumer
+apiVersion: reference.authorization.k8s.io/v1alpha1
+metadata:
+  name: contour-gateway
+subject:
+  kind: ServiceAccount
+  name: contour
+  namespace: contour-system
+classNames:
+  - contour # one install of contour only uses one GatewayClass
+references:
+  - from:
+      group: gateway.networking.k8s.io
+      resource: gateways
+    to:
+      group: ""
+      resource: secrets
+    for: tls-serving
+  - from:
+      group: gateway.networking.k8s.io
+      resource: gateways
+    to:
+      group: ""
+      resource: secrets
+    for: tls-client-validation
+  - from:
+      group: gateway.networking.k8s.io
+      resource: gateways
+    to:
+      group: ""
+      resource: configmaps
+    for: tls-client-validation
+
+---
+# Create a prod-tls Namespace to house some Secrets and ConfigMaps
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: prod-tls
+
+---
+# Finally, users can use ReferenceGrant to authorize specific cross-namespace
+# references. For example, the following ReferenceGrant authorizes references from
+# Gateways in the `prod` namespace to the `acme-tls` Secret in the `prod-tls`
+# namespace for `tls-serving`:
+kind: ReferenceGrant
+apiVersion: reference.authorization.k8s.io/v1alpha1
+metadata:
+  name: prod-gateways
+  namespace: prod-tls
+from:
+  group: gateway.networking.k8s.io
+  resource: gateways
+  namespace: prod
+to:
+  group: ""
+  resource: secrets
+  names:
+  - acme-tls
+for: tls-serving
+
+---
+# An additional ReferenceGrant is needed to also authorizes references from
+# Gateways in the `prod` namespace to the `aperture-science-ca-cert` ConfigMap
+# in the `prod-tls` namespace for `tls-client-validation`:
+kind: ReferenceGrant
+apiVersion: reference.authorization.k8s.io/v1alpha1
+metadata:
+  name: prod-gateways
+  namespace: prod-tls
+from:
+  group: gateway.networking.k8s.io
+  resource: gateways
+  namespace: prod
+to:
+  group: ""
+  resource: configmaps
+  names:
+  - aperture-science-ca-cert
+for: tls-client-validation
